@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ValAgent</title>
+<style>
+:root{
+  --accent:#0F766E; --accent-soft:rgba(15,118,110,.10); --on-accent:#FFFFFF;
+  --bg:#F6F7F9; --card:#FFFFFF; --card-2:#F2F3F5;
+  --text-1:#1A1A1A; --text-2:#8A8A8E; --line:#EFEFF0;
+  --ok:#1B7A43; --err:#E0453A; --err-bg:rgba(224,69,58,.08);
+  --radius:16px; --pad:16px; --gap:12px;
+}
+[data-theme="dark"]{
+  --accent:#14B8A6; --accent-soft:rgba(20,184,166,.12); --on-accent:#052E2B;
+  --bg:#101214; --card:#1B1E21; --card-2:#23262A;
+  --text-1:#F2F2F4; --text-2:#9AA3A8; --line:#2A2F33;
+  --ok:#34D399; --err:#F87171; --err-bg:rgba(248,113,113,.10);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text-1);
+  font:400 15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Hebrew",sans-serif;
+  user-select:none;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100%}
+
+/* ── top bar ─────────────────────────────── */
+#topbar{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) var(--pad) 10px;
+  background:var(--card);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;flex:1}
+.brand svg{width:26px;height:26px;flex:none}
+.chip{border:1px solid var(--line);background:var(--card-2);color:var(--text-2);
+  font-size:11px;font-weight:700;letter-spacing:.04em;padding:6px 10px;border-radius:999px;
+  display:flex;align-items:center;gap:6px;max-width:44vw;white-space:nowrap;overflow:hidden}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--text-2);flex:none}
+.chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.chip.on .dot{background:var(--accent)}
+.chip.busy .dot{background:var(--text-2);animation:pulse 1s infinite}
+.chip.err{background:var(--err-bg);border-color:transparent;color:var(--err)}
+.chip.err .dot{background:var(--err)}
+.chip:active{transform:scale(.96)}
+.iconbtn{width:40px;height:40px;border:0;border-radius:12px;background:transparent;color:var(--text-1);
+  display:flex;align-items:center;justify-content:center;flex:none;padding:0}
+.iconbtn:active{background:var(--card-2)}
+.iconbtn svg{width:22px;height:22px}
+
+/* ── chat ────────────────────────────────── */
+#chat{flex:1;overflow-y:auto;padding:var(--pad) var(--pad) 8px;-webkit-overflow-scrolling:touch}
+#empty{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:24px;gap:6px}
+#empty .mark{width:72px;height:72px;border-radius:22px;background:var(--accent-soft);
+  display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+#empty .mark svg{width:40px;height:40px}
+#empty h1{font-size:20px;font-weight:700;margin:0}
+#empty p{font-size:13px;color:var(--text-2);margin:0;max-width:270px}
+#empty .cta-mini{margin-top:14px;background:var(--accent);color:var(--on-accent);border:0;border-radius:999px;
+  height:48px;padding:0 28px;font-size:14px;font-weight:700;font-family:inherit}
+#empty .cta-mini:active{opacity:.85}
+
+.msg{max-width:86%;margin-bottom:var(--gap);animation:pop .18s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.msg.user{margin-inline-start:auto;background:var(--accent);color:var(--on-accent);
+  border-radius:18px 18px 6px 18px;padding:10px 14px;white-space:pre-wrap;word-break:break-word}
+.msg.assistant{background:var(--card);border-radius:18px 18px 18px 6px;padding:12px 14px;
+  border:1px solid var(--line);user-select:text;word-break:break-word}
+.msg.assistant a{color:var(--accent);text-decoration:underline}
+.msg.assistant .h{font-weight:700;font-size:15.5px;margin:8px 0 2px}
+.msg.assistant ul{margin:4px 18px 4px 0;padding:0}
+.msg.assistant li{margin:2px 0}
+.msg.assistant code.ic{background:var(--card-2);border-radius:6px;padding:1px 6px;
+  font-family:monospace;font-size:13px;direction:ltr;unicode-bidi:embed}
+.code{background:#101418;border-radius:12px;margin:8px 0;overflow:hidden}
+[data-theme="dark"] .code{background:#0B0D0F;border:1px solid var(--line)}
+.code pre{margin:0;padding:12px 14px;overflow-x:auto;color:#D7E3E1;font-family:monospace;
+  font-size:12.5px;line-height:1.5;text-align:left;user-select:text;white-space:pre-wrap;word-break:break-word}
+.caret{display:inline-block;width:8px;height:15px;background:var(--accent);border-radius:2px;
+  vertical-align:-2px;animation:blink .9s steps(1) infinite;margin-inline-start:2px}
+@keyframes blink{50%{opacity:0}}
+
+.notice{align-self:center;text-align:center;font-size:12px;color:var(--text-2);
+  background:var(--card-2);border-radius:999px;padding:5px 14px;margin:0 auto var(--gap);width:fit-content;max-width:90%}
+.errcard{background:var(--err-bg);border:1px solid transparent;border-radius:14px;padding:12px 14px;
+  margin-bottom:var(--gap);color:var(--err);font-size:13px;user-select:text;word-break:break-word}
+.errcard b{display:block;font-size:13px;margin-bottom:2px}
+
+.tcard{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  margin-bottom:var(--gap);overflow:hidden}
+.thead{display:flex;align-items:center;gap:10px;padding:10px 12px;min-height:48px}
+.thead:active{background:var(--card-2)}
+.ticon{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.ticon svg{width:18px;height:18px}
+.tname{flex:1;font-size:13px;font-weight:600;direction:ltr;text-align:start;word-break:break-all}
+.tstate{font-size:11px;font-weight:700;flex:none}
+.tstate.ok{color:var(--ok)} .tstate.err{color:var(--err)}
+.tstate .spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;display:inline-block;animation:rot .8s linear infinite;vertical-align:-2px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.tchev{color:var(--text-2);font-size:11px;transition:transform .15s;flex:none}
+.tcard[data-open="1"] .tchev{transform:rotate(180deg)}
+.tbody{display:none;padding:0 12px 12px;border-top:1px solid var(--line)}
+.tcard[data-open="1"] .tbody{display:block}
+.tlabel{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-2);margin:10px 0 4px}
+.tbody pre{margin:0;background:var(--card-2);border-radius:10px;padding:10px 12px;
+  font-family:monospace;font-size:12px;line-height:1.5;text-align:left;white-space:pre-wrap;
+  word-break:break-word;user-select:text;max-height:220px;overflow-y:auto}
+
+.think{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:12px 14px;margin-bottom:var(--gap);width:fit-content}
+.think .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;animation:rot .8s linear infinite;flex:none}
+.think span{font-size:13px;color:var(--text-2)}
+
+/* ── composer ────────────────────────────── */
+#composer{display:flex;align-items:flex-end;gap:8px;padding:10px var(--pad) calc(10px + env(safe-area-inset-bottom));
+  background:var(--card);border-top:1px solid var(--line)}
+#input{flex:1;resize:none;border:1px solid var(--line);background:var(--card-2);color:var(--text-1);
+  border-radius:22px;padding:11px 16px;font:inherit;font-size:15px;max-height:120px;outline:none;
+  user-select:text;min-height:44px}
+#input:focus{border-color:var(--accent)}
+#input::placeholder{color:var(--text-2)}
+#btnSend{width:44px;height:44px;border:0;border-radius:50%;background:var(--accent);color:var(--on-accent);
+  display:flex;align-items:center;justify-content:center;flex:none;padding:0}
+#btnSend:active{transform:scale(.92)}
+#btnSend:disabled{opacity:.4}
+#btnSend svg{width:20px;height:20px}
+
+/* ── settings overlay ────────────────────── */
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:20;display:flex;flex-direction:column}
+.overlay.hidden{display:none}
+.obar{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) var(--pad) 8px;
+  background:var(--card);border-bottom:1px solid var(--line)}
+.otitle{flex:1;font-size:17px;font-weight:700}
+.textbtn{border:0;background:transparent;color:var(--accent);font-size:14px;font-weight:700;
+  font-family:inherit;padding:10px}
+.textbtn:active{opacity:.6}
+.oscroll{flex:1;overflow-y:auto;padding:var(--pad)}
+.card{background:var(--card);border-radius:var(--radius);padding:var(--pad);margin-bottom:var(--gap)}
+.overline{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-2);margin-bottom:12px}
+.card label{display:block;font-size:13px;font-weight:600;margin:12px 0 6px}
+.card label:first-of-type{margin-top:0}
+.card input{width:100%;border:1px solid var(--line);background:var(--card-2);color:var(--text-1);
+  border-radius:12px;padding:12px 14px;font-size:14px;font-family:inherit;outline:none;user-select:text}
+.card input:focus{border-color:var(--accent)}
+.pwrow{position:relative}
+.pwrow input{padding-inline-end:44px}
+.pwrow .eye{position:absolute;inset-inline-end:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;
+  border:0;background:transparent;color:var(--text-2);display:flex;align-items:center;justify-content:center;padding:0}
+.pwrow .eye svg{width:19px;height:19px}
+.hint{font-size:12px;color:var(--text-2);margin-top:12px;line-height:1.6}
+.hint b{color:var(--text-1)}
+.secondary{width:100%;height:48px;margin-top:14px;border-radius:999px;border:1.5px solid var(--accent);
+  background:transparent;color:var(--accent);font-size:14px;font-weight:700;font-family:inherit;padding:0}
+.secondary:active{background:var(--accent-soft)}
+.secondary:disabled{opacity:.5}
+#testResult{font-size:13px;margin-top:10px;min-height:18px;word-break:break-word;user-select:text}
+#testResult.ok{color:var(--ok)} #testResult.err{color:var(--err)}
+.seg{display:flex;background:var(--card-2);border-radius:12px;padding:4px;gap:4px}
+.seg button{flex:1;height:40px;border:0;border-radius:9px;background:transparent;color:var(--text-2);
+  font-size:13px;font-weight:600;font-family:inherit;padding:0}
+.seg button.on{background:var(--card);color:var(--text-1);font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.odock{padding:12px var(--pad) calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
+.cta{display:block;width:100%;height:54px;border:0;border-radius:28px;background:var(--accent);
+  color:var(--on-accent);font-size:15px;font-weight:700;font-family:inherit}
+.cta:active{opacity:.85}
+.cta:disabled{opacity:.5}
+
+#toast{position:fixed;bottom:calc(90px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+  background:#2B2F33;color:#fff;font-size:13px;padding:9px 18px;border-radius:999px;z-index:50;
+  opacity:0;pointer-events:none;transition:opacity .2s;max-width:85vw;text-align:center}
+#toast.show{opacity:.96}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 5l7 14L19 5" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19.4" cy="19" r="2" fill="var(--accent)"/></svg>
+      ValAgent
+    </div>
+    <button id="mcpChip" class="chip" style="display:none"><span class="dot"></span><span id="mcpChipText"></span></button>
+    <button id="btnClear" class="iconbtn" aria-label="נקה צ'אט" title="נקה צ'אט">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+    </button>
+    <button id="btnSettings" class="iconbtn" aria-label="הגדרות">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10.12 3V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51.88z"/></svg>
+    </button>
+  </header>
+
+  <main id="chat">
+    <div id="empty">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 5l7 14L19 5" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19.4" cy="19" r="2" fill="var(--accent)"/></svg>
+      </div>
+      <h1>ברוך הבא ל-ValAgent</h1>
+      <p>סוכן AI שמדבר עברית, מתחבר לשרת MCP ומריץ כלים בשבילך — והתוצאות מוצגות כאן בצ'אט.</p>
+      <button id="btnStartSetup" class="cta-mini" style="display:none">התחל בהגדרות</button>
+    </div>
+    <div id="messages" style="display:flex;flex-direction:column"></div>
+  </main>
+
+  <footer id="composer">
+    <textarea id="input" rows="1" placeholder="כתוב הודעה…"></textarea>
+    <button id="btnSend" disabled aria-label="שלח">
+      <svg id="icSend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+      <svg id="icStop" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+    </button>
+  </footer>
+</div>
+
+<div id="settings" class="overlay hidden">
+  <div class="obar">
+    <button id="btnBack" class="iconbtn" aria-label="חזרה">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" transform="rotate(180 12 12)"/></svg>
+    </button>
+    <div class="otitle">הגדרות</div>
+    <button id="btnSaveTop" class="textbtn">שמור</button>
+  </div>
+  <div class="oscroll">
+    <div class="card">
+      <div class="overline">ספק AI · תואם OpenAI</div>
+      <label for="f_base">כתובת בסיס של ה-API</label>
+      <input id="f_base" dir="ltr" spellcheck="false" autocomplete="off" placeholder="https://integrate.api.nvidia.com/v1">
+      <label for="f_key">מפתח API</label>
+      <div class="pwrow">
+        <input id="f_key" type="password" dir="ltr" spellcheck="false" autocomplete="off" placeholder="nvapi-… / sk-…">
+        <button class="eye" data-for="f_key" aria-label="הצג/הסתר">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <label for="f_model">מזהה מודל</label>
+      <input id="f_model" dir="ltr" spellcheck="false" autocomplete="off" placeholder="meta/llama-3.3-70b-instruct">
+      <div class="hint">
+        <b>NVIDIA NIM:</b> integrate.api.nvidia.com/v1 + מפתח שמתחיל ב-nvapi-<br>
+        <b>OpenAI:</b> api.openai.com/v1 &nbsp;·&nbsp; <b>תואמים אחרים:</b> כל כתובת עם /chat/completions
+      </div>
+    </div>
+    <div class="card">
+      <div class="overline">שרת MCP · Streamable HTTP</div>
+      <label for="f_mcp">כתובת שרת</label>
+      <input id="f_mcp" dir="ltr" spellcheck="false" autocomplete="off" placeholder="https://example.com/mcp">
+      <label for="f_token">טוקן אימות (אופציונלי)</label>
+      <div class="pwrow">
+        <input id="f_token" type="password" dir="ltr" spellcheck="false" autocomplete="off" placeholder="Bearer token">
+        <button class="eye" data-for="f_token" aria-label="הצג/הסתר">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <button id="btnTest" class="secondary">בדיקת חיבור</button>
+      <div id="testResult"></div>
+    </div>
+    <div class="card">
+      <div class="overline">עיצוב</div>
+      <div class="seg" id="segTheme">
+        <button data-v="auto">מערכת</button>
+        <button data-v="light">בהיר</button>
+        <button data-v="dark">כהה</button>
+      </div>
+    </div>
+  </div>
+  <div class="odock"><button id="btnSave" class="cta">שמור הגדרות</button></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ═══════════════ settings ═══════════════ */
+const DEFAULTS = {
+  base_url: 'https://integrate.api.nvidia.com/v1',
+  api_key: '',
+  model: 'meta/llama-3.3-70b-instruct',
+  mcp_url: '',
+  mcp_token: '',
+  theme: 'auto'
+};
+let S = {...DEFAULTS};
+try {
+  const raw = localStorage.getItem('valagent.settings.v1');
+  if (raw) S = {...DEFAULTS, ...JSON.parse(raw)};
+} catch (e) {}
+function saveSettings() {
+  try { localStorage.setItem('valagent.settings.v1', JSON.stringify(S)); } catch (e) {}
+}
+function applyTheme() {
+  let dark;
+  if (S.theme === 'dark') dark = true;
+  else if (S.theme === 'light') dark = false;
+  else dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  try { AndroidBridge.theme(dark ? 1 : 0); } catch (e) {}
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (S.theme === 'auto') applyTheme();
+});
+
+/* ═══════════════ native bridge (HTTP) ═══════════════ */
+let callSeq = 0;
+const pending = {};
+function bridgePost(url, headers, body, opts) {
+  opts = opts || {};
+  return new Promise((resolve, reject) => {
+    const id = 'c' + (++callSeq);
+    pending[id] = { resolve, reject, onDelta: opts.onDelta || null };
+    try {
+      AndroidBridge.post(id, url, JSON.stringify(headers), body, opts.stream ? 1 : 0);
+    } catch (e) { delete pending[id]; reject(new Error('שגיאת גשר: ' + e)); }
+  });
+}
+window.__delta = function (id, chunk) {
+  const p = pending[id];
+  if (p && p.onDelta) { try { p.onDelta(chunk); } catch (e) {} }
+};
+window.__done = function (id, json) {
+  const p = pending[id];
+  if (!p) return;
+  delete pending[id];
+  let r;
+  try { r = JSON.parse(json); } catch (e) { p.reject(new Error('תקשורת שגויה מהאפליקציה')); return; }
+  if (r.status === 0) { p.reject(new Error(r.error || 'שגיאת רשת')); return; }
+  p.resolve(r);
+};
+function cancelAll() {
+  Object.keys(pending).forEach(id => {
+    try { AndroidBridge.cancel(id); } catch (e) {}
+  });
+}
+
+/* ═══════════════ helpers ═══════════════ */
+const $ = id => document.getElementById(id);
+const messagesEl = $('messages'), chatEl = $('chat'), inputEl = $('input'), btnSend = $('btnSend');
+function toast(msg) {
+  try { AndroidBridge.toast(msg); } catch (e) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+}
+function scrollBottom(force) {
+  requestAnimationFrame(() => { chatEl.scrollTop = chatEl.scrollHeight; });
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function md(src) {
+  let s = esc(src);
+  const blocks = [];
+  s = s.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
+    blocks.push('<div class="code"><pre dir="ltr">' + code.replace(/\n+$/, '') + '</pre></div>');
+    return '\u0000B' + (blocks.length - 1) + '\u0000';
+  });
+  s = s.replace(/`([^`\n]+)`/g, '<code class="ic">$1</code>');
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+  s = s.replace(/(^|\s)\*([^*\n]+)\*(?=\s|$|[.,!?])/g, '$1<i>$2</i>');
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a data-url="$2">$1</a>');
+  s = s.replace(/^#{1,4} ?(.*)$/gm, '<div class="h">$1</div>');
+  const lines = s.split('\n');
+  let out = '', inUl = false;
+  for (const line of lines) {
+    if (/^[-•] /.test(line)) {
+      if (!inUl) { out += '<ul>'; inUl = true; }
+      out += '<li>' + line.slice(2) + '</li>';
+    } else {
+      if (inUl) { out += '</ul>'; inUl = false; }
+      out += line + '\n';
+    }
+  }
+  if (inUl) out += '</ul>';
+  s = out;
+  s = s.replace(/\u0000B(\d+)\u0000/g, (m, i) => blocks[+i]);
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-url]');
+  if (a) { try { AndroidBridge.openUrl(a.dataset.url); } catch (err) {} }
+});
+
+/* ═══════════════ chat rendering ═══════════════ */
+function hideEmpty() { $('empty').style.display = 'none'; messagesEl.style.display = 'flex'; }
+function addMsg(role, text) {
+  hideEmpty();
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  if (role === 'assistant') d.innerHTML = md(text);
+  else d.textContent = text;
+  messagesEl.appendChild(d);
+  scrollBottom();
+  return d;
+}
+function addErrorCard(title, detail) {
+  hideEmpty();
+  const d = document.createElement('div');
+  d.className = 'errcard';
+  d.innerHTML = '<b>' + esc(title) + '</b>' + esc(detail || '');
+  messagesEl.appendChild(d);
+  scrollBottom();
+  return d;
+}
+function addNotice(text) {
+  hideEmpty();
+  const d = document.createElement('div');
+  d.className = 'notice';
+  d.textContent = text;
+  messagesEl.appendChild(d);
+  scrollBottom();
+  return d;
+}
+let thinkEl = null;
+function showThinking(label) {
+  removeThinking();
+  hideEmpty();
+  thinkEl = document.createElement('div');
+  thinkEl.className = 'think';
+  thinkEl.innerHTML = '<span class="spin"></span><span>' + esc(label) + '</span>';
+  messagesEl.appendChild(thinkEl);
+  scrollBottom();
+}
+function removeThinking() {
+  if (thinkEl) { thinkEl.remove(); thinkEl = null; }
+}
+function addToolCard(name, argsJson) {
+  hideEmpty();
+  const d = document.createElement('div');
+  d.className = 'tcard';
+  d.dataset.open = '1';
+  d.innerHTML =
+    '<div class="thead">' +
+      '<span class="ticon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7z"/></svg></span>' +
+      '<span class="tname">' + esc(name) + '</span>' +
+      '<span class="tstate"><span class="spin"></span></span>' +
+      '<span class="tchev">▾</span>' +
+    '</div>' +
+    '<div class="tbody">' +
+      '<div class="tlabel">פרמטרים</div><pre dir="ltr">' + esc(pretty(argsJson)) + '</pre>' +
+      '<div class="tlabel">תוצאה</div><pre dir="ltr" class="tres">…</pre>' +
+    '</div>';
+  d.querySelector('.thead').addEventListener('click', () => {
+    d.dataset.open = d.dataset.open === '1' ? '0' : '1';
+  });
+  messagesEl.appendChild(d);
+  scrollBottom();
+  return {
+    ok(text) {
+      const st = d.querySelector('.tstate');
+      st.className = 'tstate ok'; st.textContent = 'הושלם';
+      d.querySelector('.tres').textContent = text;
+      d.querySelector('.tres').style.maxHeight = '160px';
+    },
+    fail(text) {
+      const st = d.querySelector('.tstate');
+      st.className = 'tstate err'; st.textContent = 'נכשל';
+      d.querySelector('.tres').textContent = text;
+      d.dataset.open = '1';
+    }
+  };
+}
+function pretty(jsonStr) {
+  try { return JSON.stringify(JSON.parse(jsonStr), null, 1); }
+  catch (e) { return jsonStr || '{}'; }
+}
+
+/* ═══════════════ MCP client (Streamable HTTP) ═══════════════ */
+let mcpSession = null, mcpProto = null, mcpTools = [], mcpConnected = false, mcpConnecting = false, rpcId = 100;
+function mcpHeaders() {
+  const h = { 'Accept': 'application/json, text/event-stream' };
+  if (mcpSession) { h['mcp-session-id'] = mcpSession; h['mcp-protocol-version'] = mcpProto || '2025-03-26'; }
+  if (S.mcp_token) h['Authorization'] = 'Bearer ' + S.mcp_token;
+  return h;
+}
+function sseDataObjects(body) {
+  const out = [];
+  (body || '').split('\n').forEach(line => {
+    if (!line.startsWith('data:')) return;
+    const p = line.slice(5).trim();
+    if (!p || p === '[DONE]') return;
+    try { out.push(JSON.parse(p)); } catch (e) {}
+  });
+  return out;
+}
+function parseRpc(resp) {
+  if (resp.status >= 400) throw new Error('HTTP ' + resp.status + ' · ' + snippet(resp.body));
+  const ct = resp.headers['content-type'] || '';
+  if (ct.includes('text/event-stream')) {
+    const objs = sseDataObjects(resp.body);
+    const rpcs = objs.filter(o => o && (o.result !== undefined || o.error !== undefined));
+    if (rpcs.length) return rpcs[rpcs.length - 1];
+    if (objs.length) return objs[objs.length - 1];
+    throw new Error('השרת החזיר זרם ריק');
+  }
+  try { return JSON.parse(resp.body); }
+  catch (e) { throw new Error('תשובה לא חוקית מהשרת'); }
+}
+function snippet(t) { return (t || '').slice(0, 180); }
+async function mcpConnect() {
+  const url = (S.mcp_url || '').trim();
+  if (!url) throw new Error('לא הוגדרה כתובת שרת MCP');
+  mcpSession = null; mcpProto = null;
+  const init = { jsonrpc: '2.0', id: ++rpcId, method: 'initialize',
+    params: { protocolVersion: '2025-03-26', capabilities: {},
+      clientInfo: { name: 'ValAgent', version: '1.0' } } };
+  const r1 = await bridgePost(url, { ...mcpHeaders(), 'Content-Type': 'application/json' }, JSON.stringify(init));
+  const p1 = parseRpc(r1);
+  if (p1.error) throw new Error('initialize: ' + (p1.error.message || JSON.stringify(p1.error)));
+  mcpSession = r1.headers['mcp-session-id'] || null;
+  mcpProto = (p1.result && p1.result.protocolVersion) || '2025-03-26';
+  await bridgePost(url, { ...mcpHeaders(), 'Content-Type': 'application/json' },
+    JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })).catch(() => {});
+  const r3 = await bridgePost(url, { ...mcpHeaders(), 'Content-Type': 'application/json' },
+    JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/list', params: {} }));
+  const p3 = parseRpc(r3);
+  if (p3.error) throw new Error('tools/list: ' + (p3.error.message || JSON.stringify(p3.error)));
+  mcpTools = (p3.result && p3.result.tools) || [];
+  mcpConnected = true;
+  updateChip();
+  return mcpTools;
+}
+async function mcpCall(name, args) {
+  const url = (S.mcp_url || '').trim();
+  const r = await bridgePost(url, { ...mcpHeaders(), 'Content-Type': 'application/json' },
+    JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call',
+      params: { name: name, arguments: args || {} } }));
+  const p = parseRpc(r);
+  if (p.error) throw new Error(p.error.message || JSON.stringify(p.error));
+  const res = p.result || {};
+  const parts = (res.content || []).filter(c => c && c.type === 'text').map(c => c.text);
+  if (res.isError) throw new Error(parts.join('\n') || 'הכלי דיווח על שגיאה');
+  if (parts.length) return parts.join('\n\n');
+  if (res.structuredContent) return JSON.stringify(res.structuredContent, null, 1);
+  return JSON.stringify(res, null, 1).slice(0, 8000);
+}
+function updateChip() {
+  const chip = $('mcpChip'), txt = $('mcpChipText');
+  if (!S.mcp_url) { chip.style.display = 'none'; return; }
+  chip.style.display = '';
+  chip.classList.remove('on', 'busy', 'err');
+  if (mcpConnecting) { chip.classList.add('busy'); txt.textContent = 'MCP מתחבר…'; }
+  else if (mcpConnected) { chip.classList.add('on'); txt.textContent = 'MCP · ' + mcpTools.length + ' כלים'; }
+  else { chip.classList.add('err'); txt.textContent = 'MCP מנותק'; }
+}
+$('mcpChip').addEventListener('click', async () => {
+  if (mcpConnected || mcpConnecting || !S.mcp_url) return;
+  mcpConnecting = true; updateChip();
+  try { await mcpConnect(); toast('מחובר · ' + mcpTools.length + ' כלים זמינים'); }
+  catch (e) { toast('חיבור MCP נכשל: ' + e.message); }
+  finally { mcpConnecting = false; updateChip(); }
+});
+
+/* ═══════════════ LLM (OpenAI-compatible) ═══════════════ */
+function apiUrl() { return (S.base_url || '').replace(/\/+$/, '') + '/chat/completions'; }
+function apiHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + S.api_key };
+}
+function apiErrMsg(resp) {
+  let detail = '';
+  try {
+    const j = JSON.parse(resp.body);
+    detail = (j.error && (j.error.message || j.error.code)) || j.detail || j.message || '';
+  } catch (e) { detail = snippet(resp.body); }
+  return 'שגיאת API (' + resp.status + '): ' + (detail || 'ללא פירוט');
+}
+async function chatOnce(body, onDelta) {
+  const resp = await bridgePost(apiUrl(), apiHeaders(), JSON.stringify(body), { stream: true, onDelta });
+  if (resp.status >= 400) throw new Error(apiErrMsg(resp));
+  let j;
+  try { j = JSON.parse(resp.body); }
+  catch (e) { throw new Error('תשובה לא חוקית מה-API'); }
+  if (j._error) {
+    let m = '';
+    try { m = JSON.parse(j._error).error.message || ''; } catch (e) {}
+    throw new Error('שגיאת API: ' + (m || j._error).slice(0, 300));
+  }
+  return j;
+}
+
+/* ═══════════════ agent loop ═══════════════ */
+let msgs = [], busy = false, aborted = false, curCall = null;
+const MAX_STEPS = 8;
+function setSendState() {
+  const canSend = !busy && inputEl.value.trim().length > 0;
+  btnSend.disabled = !(busy || canSend);
+  $('icSend').style.display = busy ? 'none' : '';
+  $('icStop').style.display = busy ? '' : 'none';
+}
+async function send() {
+  const text = inputEl.value.trim();
+  if (busy) { aborted = true; cancelAll(); return; }
+  if (!text) return;
+  if (!S.api_key) { openSettings(); toast('הזן מפתח API כדי להתחיל'); return; }
+  inputEl.value = ''; autoGrow(); setSendState();
+  hideEmpty();
+  addMsg('user', text);
+  msgs.push({ role: 'user', content: text });
+  busy = true; aborted = false; setSendState();
+
+  try {
+    let tools;
+    if (S.mcp_url) {
+      if (!mcpConnected) {
+        const n = addNotice('מתחבר לשרת MCP…');
+        mcpConnecting = true; updateChip();
+        try {
+          await mcpConnect();
+          n.textContent = 'מחובר ל-MCP · ' + mcpTools.length + ' כלים זמינים';
+        } catch (e) {
+          n.remove();
+          addErrorCard('חיבור MCP נכשל', e.message + ' — ממשיך בלי כלים.');
+          mcpConnected = false;
+        }
+        mcpConnecting = false; updateChip();
+      }
+      if (mcpConnected && mcpTools.length) {
+        tools = mcpTools.map(t => ({
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description || '',
+            parameters: t.inputSchema || { type: 'object', properties: {} }
+          }
+        }));
+      }
+    }
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      if (aborted) break;
+      showThinking(step === 0 ? 'חושב…' : 'מנתח תוצאות כלים…');
+      const body = {
+        model: S.model,
+        messages: msgs,
+        temperature: 0.4,
+        max_tokens: 2048,
+        stream: true
+      };
+      if (tools) body.tools = tools;
+
+      let bubble = document.createElement('div');
+      bubble.className = 'msg assistant';
+      let raw = '';
+      let started = false;
+      const flush = () => {
+        if (!started && raw.trim()) {
+          removeThinking();
+          messagesEl.appendChild(bubble);
+          started = true;
+        }
+        if (started) {
+          bubble.innerHTML = esc(raw).replace(/\n/g, '<br>') + '<span class="caret"></span>';
+          scrollBottom();
+        }
+      };
+      const resp = await chatOnce(body, chunk => { raw += chunk; flush(); });
+      removeThinking();
+      if (!started) bubble = null;
+
+      if (aborted) {
+        if (bubble && raw.trim()) {
+          bubble.innerHTML = esc(raw).replace(/\n/g, '<br>') + ' <span style="color:var(--text-2);font-size:12px">(נעצר)</span>';
+        }
+        break;
+      }
+
+      const msg = resp.choices && resp.choices[0] && resp.choices[0].message;
+      if (!msg) throw new Error('תשובה ריקה מהמודל');
+
+      if (msg.tool_calls && msg.tool_calls.length) {
+        msgs.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });
+        if (bubble && (msg.content || '').trim()) bubble.innerHTML = md(msg.content);
+        else if (bubble) bubble.remove();
+        for (const tc of msg.tool_calls) {
+          if (aborted) break;
+          const fname = tc.function && tc.function.name || '?';
+          const fargs = (tc.function && tc.function.arguments) || '{}';
+          const card = addToolCard(fname, fargs);
+          let out;
+          try {
+            let args = {};
+            try { args = JSON.parse(fargs); } catch (e) {
+              throw new Error('המודל החזיר פרמטרים לא חוקיים: ' + snippet(fargs));
+            }
+            const res = await mcpCall(fname, args);
+            out = res.slice(0, 8000);
+            card.ok(out.length > 4000 ? out.slice(0, 4000) + '\n…' : out);
+          } catch (e) {
+            out = 'ERROR: ' + e.message;
+            card.fail(e.message);
+          }
+          msgs.push({ role: 'tool', tool_call_id: tc.id || ('call_' + step), content: out });
+        }
+        continue;
+      }
+
+      const finalText = msg.content || '';
+      msgs.push({ role: 'assistant', content: finalText });
+      if (bubble) bubble.innerHTML = md(finalText);
+      else addMsg('assistant', finalText);
+      scrollBottom();
+      break;
+    }
+    if (aborted) { /* stopped by user */ }
+  } catch (e) {
+    removeThinking();
+    if (aborted) {
+      addNotice('נעצר לפי בקשתך');
+    } else {
+      addErrorCard('משהו נתקע', e.message || String(e));
+    }
+  } finally {
+    busy = false; aborted = false; curCall = null;
+    setSendState(); updateChip();
+  }
+}
+
+/* ═══════════════ composer ═══════════════ */
+function autoGrow() {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+}
+inputEl.addEventListener('input', () => { autoGrow(); setSendState(); });
+btnSend.addEventListener('click', send);
+
+/* ═══════════════ settings UI ═══════════════ */
+function openSettings() {
+  $('f_base').value = S.base_url;
+  $('f_key').value = S.api_key;
+  $('f_model').value = S.model;
+  $('f_mcp').value = S.mcp_url;
+  $('f_token').value = S.mcp_token;
+  $('testResult').textContent = '';
+  $('testResult').className = '';
+  document.querySelectorAll('#segTheme button').forEach(b =>
+    b.classList.toggle('on', b.dataset.v === S.theme));
+  $('settings').classList.remove('hidden');
+}
+function closeSettings() { $('settings').classList.add('hidden'); }
+function readAndSave() {
+  S.base_url = $('f_base').value.trim() || DEFAULTS.base_url;
+  S.api_key = $('f_key').value.trim();
+  S.model = $('f_model').value.trim() || DEFAULTS.model;
+  S.mcp_url = $('f_mcp').value.trim();
+  S.mcp_token = $('f_token').value.trim();
+  const themeBtn = document.querySelector('#segTheme button.on');
+  if (themeBtn) S.theme = themeBtn.dataset.v;
+  if (S.mcp_url !== (localStorage.getItem('valagent.last_mcp') || '')) {
+    mcpConnected = false; mcpTools = []; mcpSession = null;
+    try { localStorage.setItem('valagent.last_mcp', S.mcp_url); } catch (e) {}
+  }
+  saveSettings();
+  applyTheme();
+  updateChip();
+  refreshEmptyState();
+}
+$('btnSettings').addEventListener('click', openSettings);
+$('btnStartSetup').addEventListener('click', openSettings);
+$('btnBack').addEventListener('click', () => { readAndSave(); closeSettings(); });
+$('btnSaveTop').addEventListener('click', () => { readAndSave(); closeSettings(); toast('ההגדרות נשמרו'); });
+$('btnSave').addEventListener('click', () => { readAndSave(); closeSettings(); toast('ההגדרות נשמרו'); });
+$('segTheme').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  document.querySelectorAll('#segTheme button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  S.theme = b.dataset.v;
+  applyTheme();
+});
+document.querySelectorAll('.eye').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const inp = $(btn.dataset.for);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
+});
+$('btnTest').addEventListener('click', async () => {
+  readAndSave();
+  const out = $('testResult');
+  if (!S.mcp_url) { out.className = 'err'; out.textContent = 'הזן קודם כתובת שרת'; return; }
+  const btn = $('btnTest');
+  btn.disabled = true;
+  out.className = ''; out.textContent = 'בודק חיבור…';
+  mcpConnecting = true; mcpConnected = false; updateChip();
+  try {
+    const tools = await mcpConnect();
+    out.className = 'ok';
+    out.textContent = 'מחובר ✓ ' + tools.length + ' כלים: ' +
+      (tools.map(t => t.name).join(', ').slice(0, 160) || '(ריק)');
+  } catch (e) {
+    out.className = 'err';
+    out.textContent = 'נכשל: ' + e.message;
+  } finally {
+    btn.disabled = false; mcpConnecting = false; updateChip();
+  }
+});
+
+/* ═══════════════ clear chat ═══════════════ */
+$('btnClear').addEventListener('click', () => {
+  if (busy) { toast('עוצר לפני ניקוי…'); aborted = true; cancelAll(); }
+  msgs = [];
+  messagesEl.innerHTML = '';
+  refreshEmptyState();
+});
+function refreshEmptyState() {
+  const has = messagesEl.children.length > 0;
+  $('empty').style.display = has ? 'none' : '';
+  messagesEl.style.display = has ? 'flex' : 'none';
+  $('btnStartSetup').style.display = S.api_key ? 'none' : '';
+}
+
+/* ═══════════════ boot ═══════════════ */
+applyTheme();
+updateChip();
+refreshEmptyState();
+setSendState();
+</script>
+</body>
+</html>
